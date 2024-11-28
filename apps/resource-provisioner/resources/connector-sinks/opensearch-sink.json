@@ -1,0 +1,29 @@
+{
+  "name": "opensearch-sink",
+  "config": {
+    "connector.class": "io.aiven.kafka.connect.opensearch.OpensearchSinkConnector",
+    "tasks.max": "4",
+    "topics": "bluesky_aggregator_output",
+    "connection.url": "https://opensearch:9200",
+    "key.ignore": "true",
+    "schema.ignore": "true",
+    "tls.insecure": "true",
+    "connection.username": "admin",
+    "connection.password": "#@dm1N?!98765",
+    "flush.timeout.ms": "30000",
+    "read.timeout.ms": "10000",
+    "batch.size": "5000",
+    "max.retries": "5",
+    "max.buffered.records": "5000",
+    "connection.timeout.ms": "1000",
+    "errors.tolerance": "all",
+    "errors.log.enable": "true",
+    "behavior.on.version.conflict": "ignore",
+    "write.method": "upsert",
+    "type.name":"kafka-connect",
+    "transforms": "createIndexName",
+    "transforms.createIndexName.type": "io.confluent.connect.transforms.ExtractTopic$Value",
+    "transforms.createIndexName.field": "index-name"
+  }
+}
+

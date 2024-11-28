@@ -1,0 +1,225 @@
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.7.2
+    labels:
+      name: zookeeper
+    restart: always
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+    ports:
+      - '2181:2181'
+
+  kafka:
+    image: confluentinc/cp-kafka:7.7.2
+    labels:
+      name: kafka
+    restart: always
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    healthcheck:
+      test: [ "CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    ports:
+      - '9092:9092'
+      - '29092:29092'
+      - '7071:7071'
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_LISTENERS: 'INTERNAL://0.0.0.0:9092,EXTERNAL://0.0.0.0:29092'
+      KAFKA_ADVERTISED_LISTENERS: 'INTERNAL://kafka:9092,EXTERNAL://localhost:29092'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT'
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'false'
+      KAFKA_JMX_PORT: 9999
+      KAFKA_JMX_HOSTNAME: 'localhost'
+    volumes:
+      - ./resources/jmx_prometheus_javaagent-0.20.0.jar:/usr/app/jmx_prometheus_javaagent.jar
+      - ./resources/kafka_jmx_config.yaml:/usr/app/kafka_jmx_config.yml
+    command: >
+      bash -c 'export KAFKA_OPTS="$KAFKA_OPTS -javaagent:/usr/app/jmx_prometheus_javaagent.jar=7071:/usr/app/kafka_jmx_config.yml" &&
+      /etc/confluent/docker/run & sleep 5; kafka-topics --create --bootstrap-server localhost:9092 --replication-factor 1 --partitions 10 --topic bluesky_input_stream --config retention.ms=7200000 ;
+      kafka-topics --create --bootstrap-server localhost:9092 --replication-factor 1 --partitions 10 --topic bluesky_aggregator_output --config retention.ms=7200000 ;
+      wait'
+
+  kafka-connect:
+    image: confluentinc/cp-kafka-connect:7.7.2
+    labels:
+      name: kafka-connect
+    restart: always
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - 8083:8083
+    environment:
+      CONNECT_BOOTSTRAP_SERVERS: 'kafka:9092'
+      CONNECT_REST_ADVERTISED_HOST_NAME: 'kafka-connect'
+      CONNECT_GROUP_ID: 'compose-connect-group'
+      CONNECT_CONFIG_STORAGE_TOPIC: 'docker-connect-configs'
+      CONNECT_OFFSET_STORAGE_TOPIC: 'docker-connect-offsets'
+      CONNECT_STATUS_STORAGE_TOPIC: 'docker-connect-status'
+      CONNECT_KEY_CONVERTER: 'org.apache.kafka.connect.json.JsonConverter'
+      CONNECT_VALUE_CONVERTER: 'org.apache.kafka.connect.json.JsonConverter'
+      CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE: 'false'
+      CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: 'false'
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_PLUGIN_PATH: '/usr/share/java,/etc/kafka-connect/jars'
+    volumes:
+      - ./resources/kafka-connect/plugins:/etc/kafka-connect/jars
+
+
+  prometheus:
+    image: prom/prometheus:v3.0.1
+    labels:
+      name: prometheus
+    restart: always
+    container_name: prometheus
+    volumes:
+      - ./resources/prometheus.yaml:/etc/prometheus/prometheus.yml
+    ports:
+      - '9090:9090'
+
+  grafana:
+    image: grafana/grafana:11.3.1
+    labels:
+      name: grafana
+    restart: always
+    platform: linux/amd64
+    container_name: grafana
+    ports:
+      - '3000:3000'
+    volumes:
+      - ./resources/grafana/entrypoint.sh:/entrypoint.sh
+      - ./resources/grafana/datasources/:/etc/grafana/provisioning/datasources/
+      - ./resources/grafana/dashboards/:/etc/grafana/provisioning/dashboards/
+      - ./resources/grafana/hamedkarbasi93-kafka-datasource-0.2.0.zip:/var/lib/grafana/plugins/hamedkarbasi93-kafka-datasource-0.2.0.zip
+    entrypoint: ["/bin/bash", "/entrypoint.sh"]
+    environment:
+      - GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=hamedkarbasi93-kafka-datasource
+
+
+  kafka-exporter:
+    image: danielqsj/kafka-exporter:v1.8.0
+    labels:
+      name: kafka-exporter
+    restart: always
+    container_name: kafka-exporter
+    command: [ "--kafka.server=kafka:9092"]
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      - KAFKA_VERSION=2.0.0
+      - TOPIC_REGEX=.*
+      - GROUP_REGEX=.*
+    ports:
+      - '9308:9308'
+
+  opensearch:
+    image: opensearchproject/opensearch:2.18.0
+    labels:
+      name: opensearch
+    restart: always
+    container_name: opensearch
+    environment:
+      - cluster.name=opensearch-cluster
+      - node.name=opensearch
+      - discovery.seed_hosts=opensearch
+      - cluster.initial_cluster_manager_nodes=opensearch
+      - bootstrap.memory_lock=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+      - OPENSEARCH_INITIAL_ADMIN_PASSWORD=${OPENSEARCH_PASSWORD}
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - opensearch-data1:/usr/share/opensearch/data
+    ports:
+      - 9200:9200
+      - 9600:9600
+
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:2.18.0
+    labels:
+      name: opensearch-dashboards
+    restart: always
+    container_name: opensearch-dashboards
+    ports:
+      - 5601:5601
+    expose:
+      - "5601"
+    environment:
+      OPENSEARCH_HOSTS: '["https://opensearch:9200"]'
+
+  resource-provisioner:
+    build:
+      context: apps/resource-provisioner/
+      dockerfile: Dockerfile
+    depends_on:
+      - opensearch
+      - kafka-connect
+    restart: always
+    labels:
+      name: resource-provisoner
+    volumes:
+      - ./apps/resource-provisioner/resources/:/app/resources/
+      - ./apps/resource-provisioner/scripts/:/app/scripts/
+    environment:
+      - OPENSEARCH_URL=https://opensearch:9200
+      - OPENSEARCH_DASHBOARDS_URL=http://opensearch-dashboards:5601
+      - OPENSEARCH_USER=admin
+      - OPENSEARCH_PASSWORD=${OPENSEARCH_PASSWORD}
+      - CURL_OPTIONS=--insecure
+      - KAFKA_CONNECT_URL=http://kafka-connect:8083
+
+  bluesky-scraper:
+    build:
+      context: apps/bluesky-scraper/
+      dockerfile: Dockerfile
+    labels:
+      name: bsky-scraper
+    restart: always
+    container_name: bluesky_scraper
+    environment:
+      KAFKA_BROKER: 'kafka:9092'
+      KAFKA_ADDRESSES: 'kafka:9092'
+      KAFKA_TOPIC: 'bluesky_input_stream'
+      RUST_LOG: 'info'
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+  bluesky-post-aggregator:
+    build:
+      context: apps/bluesky-post-aggregator
+      dockerfile: Dockerfile
+    labels:
+      name: bsky-post-agg
+    restart: always
+    container_name: bluesky-post-aggregator
+    environment:
+      KAFKA_ADDRESSES: 'kafka:9092'
+      APPLICATION_ID: 'record-clusters-1'
+      INPUT_TOPIC: 'bluesky_input_stream'
+      INPUT_TOPIC_PARTITIONS: '8'
+      OUTPUT_TOPIC: 'bluesky_aggregator_output'
+      OUTPUT_TOPIC_PARTITIONS: '8'
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+volumes:
+  opensearch-data1:
+  opensearch-data2:

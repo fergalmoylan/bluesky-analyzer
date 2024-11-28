@@ -1,0 +1,44 @@
+{
+  "index_patterns": ["language-clusters-*"],
+  "template": {
+    "mappings": {
+      "properties": {
+        "timestamp": {
+          "type": "date",
+          "format": "epoch_millis"
+        },
+        "count": {
+          "type": "integer"
+        },
+        "language": {
+          "type": "keyword"
+        },
+        "index-name": {
+          "type": "keyword"
+        },
+        "top-hashtags": {
+          "type": "nested",
+          "properties": {
+            "key": {
+              "type": "keyword"
+            },
+            "count": {
+              "type": "integer"
+            }
+          }
+        },
+        "top-hostnames": {
+          "type": "nested",
+          "properties": {
+            "key": {
+              "type": "keyword"
+            },
+            "count": {
+              "type": "integer"
+            }
+          }
+        }
+      }
+    }
+  }
+}
