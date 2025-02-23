@@ -43,8 +43,9 @@ services:
       - ./resources/kafka_jmx_config.yaml:/usr/app/kafka_jmx_config.yml
     command: >
       bash -c 'export KAFKA_OPTS="$KAFKA_OPTS -javaagent:/usr/app/jmx_prometheus_javaagent.jar=7071:/usr/app/kafka_jmx_config.yml" &&
-      /etc/confluent/docker/run & sleep 5; kafka-topics --create --bootstrap-server localhost:9092 --replication-factor 1 --partitions 10 --topic bluesky_input_stream --config retention.ms=7200000 ;
-      kafka-topics --create --bootstrap-server localhost:9092 --replication-factor 1 --partitions 10 --topic bluesky_aggregator_output --config retention.ms=7200000 ;
+      /etc/confluent/docker/run & sleep 5; kafka-topics --create --bootstrap-server localhost:9092 --replication-factor 1 --partitions 8 --topic bluesky_input_stream --config retention.ms=7200000 ;
+      kafka-topics --create --bootstrap-server localhost:9092 --replication-factor 1 --partitions 8 --topic bluesky_aggregator_output --config retention.ms=7200000 ;
+      kafka-topics --create --bootstrap-server localhost:9092 --replication-factor 1 --partitions 8 --topic bluesky_enricher_output --config retention.ms=7200000 ;
       wait'
 
   kafka-connect:
@@ -216,6 +217,8 @@ services:
       INPUT_TOPIC_PARTITIONS: '8'
       OUTPUT_TOPIC: 'bluesky_aggregator_output'
       OUTPUT_TOPIC_PARTITIONS: '8'
+      ENRICHED_TOPIC: 'bluesky_enricher_output'
+      ENRICHED_TOPIC_PARTITIONS: '8'
     depends_on:
       kafka:
         condition: service_healthy

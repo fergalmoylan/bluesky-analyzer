@@ -1,0 +1,55 @@
+{
+  "index_patterns": ["keyword-clusters-*"],
+  "template": {
+    "mappings": {
+      "properties": {
+        "index-name": {
+          "type": "keyword"
+        },
+        "count": {
+          "type": "integer"
+        },
+        "top-hashtags": {
+          "type": "nested",
+          "properties": {
+            "count": {
+              "type": "integer"
+            },
+            "key": {
+              "type": "keyword"
+            }
+          }
+        },
+        "keyword": {
+          "type": "keyword"
+        },
+        "top-sentiment": {
+          "type": "nested",
+          "properties": {
+            "count": {
+              "type": "integer"
+            },
+            "key": {
+              "type": "keyword"
+            }
+          }
+        },
+        "timestamp": {
+          "format": "epoch_millis",
+          "type": "date"
+        },
+        "top-languages": {
+          "type": "nested",
+          "properties": {
+            "count": {
+              "type": "integer"
+            },
+            "key": {
+              "type": "keyword"
+            }
+          }
+        }
+      }
+    }
+  }
+}

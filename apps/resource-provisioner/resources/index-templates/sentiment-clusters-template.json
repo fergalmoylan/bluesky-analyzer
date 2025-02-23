@@ -1,0 +1,44 @@
+{
+  "index_patterns": ["sentiment-clusters-*"],
+  "template": {
+    "mappings": {
+      "properties": {
+        "sentiment": {
+          "type": "keyword"
+        },
+        "top-keywords": {
+          "type": "nested",
+          "properties": {
+            "count": {
+              "type": "integer"
+            },
+            "key": {
+              "type": "keyword"
+            }
+          }
+        },
+        "index-name": {
+          "type": "keyword"
+        },
+        "count": {
+          "type": "integer"
+        },
+        "top-hashtags": {
+          "type": "nested",
+          "properties": {
+            "count": {
+              "type": "integer"
+            },
+            "key": {
+              "type": "keyword"
+            }
+          }
+        },
+        "timestamp": {
+          "format": "epoch_millis",
+          "type": "date"
+        }
+      }
+    }
+  }
+}
